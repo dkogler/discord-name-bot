@@ -4,6 +4,8 @@ const bot = new Discord.Client();
 const TOKEN = process.env.TOKEN;
 const DEFAULT_CHANNEL_ID = '847099887090925578';
 const CHANNEL_COMMAND_STRING = "!name-bot set-channel";
+const CHECK_COMMAND_STRING = "!name-bot check-names";
+const HELP_COMMAND_STRING = "!name-bot help";
 
 const readline = require('readline');
 const fs = require('fs');
@@ -23,19 +25,22 @@ bot.on('ready', () => {
 
 // listen for incoming commands
 bot.on('message', msg => {
-    // change or set the channel to send notifications to
-    if (msg.content.includes(CHANNEL_COMMAND_STRING)) {
-        let newValue = getNewChannelId(msg.content);
-        let checkChannel = bot.channels.get(newValue);
-        if (checkChannel){
-            sendChannel = checkChannel;
-            msg.channel.send("Successfully changed message channel to " + sendChannel.name);
-        }
-        else {
-            msg.channel.send(newValue + " is not a valid channel id");
-        }
-    } 
-    
+    // make sure name-bot didn't send this message
+    if (msg.member.user !== bot.user){
+        // change or set the channel to send notifications to
+        if (msg.content.includes(CHANNEL_COMMAND_STRING)) {
+            attemptChannelChange(msg);
+        } 
+        // order a check of all usernames now
+        if (msg.content.includes(CHECK_COMMAND_STRING)) {
+            msg.channel.send("Running Naughty Check");
+            runNaughtyCheck();
+        } 
+        // order a check of all usernames now
+        if (msg.content.includes(HELP_COMMAND_STRING)) {
+            printHelpMessage(msg);
+        } 
+    }
 });
 
 // listen for changes to the member (non-username)
@@ -44,7 +49,7 @@ bot.on('guildMemberUpdate', (oldMember, newMember) => {
 
     // only do something if the nickname changed and it's a bad nickname
     if (oldMember.nickname !== newMember.nickname && found){
-        trySend(memberIdStringify(oldMember) + " has become " + memberIdStringify(newMember) + " -- detected \"" + found + "\"");
+        trySend(`ALERT! Nickname Change: **${memberIdStringify(oldMember)}** has become **${memberIdStringify(newMember)}** -- detected **\"${found}\"**`);
         console.info("detected bad change of " + found);    
     }
     else {
@@ -58,11 +63,11 @@ bot.on('userUpdate', (oldMember, newMember) => {
 
     // only do something if the username changed and it's a bad username
     if (oldMember.username !== newMember.username && found){
-        trySend(oldMember.username + " has become " + newMember.username + " -- detected \"" + found + "\"");
-        console.info("detected bad user change of " + found);
+        trySend(`**ALERT!** Username Change: **${oldMember.username}** has become **${newMember.username}** -- detected **\"${found}\"**`);
+        console.info("detected bad username change of " + found);
     }
     else {
-        console.info("detected user change");
+        console.info("detected username change");
     }
 });
 
@@ -85,6 +90,9 @@ function trySend(string){
 
 // check if a name contains anything in the censor list
 function isBadName(name){
+    if (!name) {
+        return false;
+    }
     for (let bad in naughtyList){
         if (name.toLowerCase().includes(naughtyList[bad])){
             return naughtyList[bad];
@@ -98,8 +106,67 @@ function loadNaughtyList(){
     let myInterface = readline.createInterface({
         input: fs.createReadStream(NAUGHTY_LIST_FILE)
     });
-      
+
     myInterface.on('line', function (line) {
         naughtyList.push(line);
     });
+}
+
+// run a check to see if members have naughty names at startup
+function runNaughtyCheck(){
+    let naughtyCount = 0;
+    bot.guilds.forEach((guild) => {
+        guild.members.forEach((member) => {
+            // check for bad member nicknames
+            let found = isBadName(member.nickname);
+            if (found){
+                trySend(`**ALERT!** Bad Nickname **${member.nickname}** -- detected **\"${found}\"**`);
+                naughtyCount++;
+                console.info("detected bad nickname of " + found);
+            }
+
+            // check for bad usernames
+            let user = member.user;
+            found = isBadName(user.username);
+            if (found){
+                trySend(`**ALERT!** Bad Username **${user.username}** -- detected **\"${found}\"**`);
+                naughtyCount++;
+                console.info("detected bad username of " + found);
+            }
+        });
+    });
+    if (naughtyCount === 1){
+        trySend("***1*** *naughty name found*");
+    }
+    else{
+        trySend("***" + naughtyCount + "*** *naughty names found*");
+    }
+};
+
+// try to change the send channel
+function attemptChannelChange(msg){
+    let newValue = getNewChannelId(msg.content);
+        let checkChannel = bot.channels.get(newValue);
+        if (checkChannel){
+            sendChannel = checkChannel;
+            msg.channel.send("*Successfully changed message channel to* ***" + sendChannel.name + "***");
+        }
+        else {
+            if (newValue === ""){
+                msg.channel.send("*New channel id must be a number*");
+            }
+            else{
+                msg.channel.send("***" + newValue + "*** *is not a valid channel id*");
+            }
+        }
+}
+
+// print the list of commands
+function printHelpMessage(msg){
+    msg.channel.send(
+        "**List of commands:**\n" +
+        "`!name-bot set-channel <channel id>` -- ***tells name-bot what channel to post alerts on;*** *<channel id> should be a number that can be found in Discord's developer mode (can be turned on in Advanced settings) by right clicking on a channel name*\n" +
+        "`!name-bot check-names` -- ***tells name-bot to run a check for naughty names RIGHT NOW***\n" +
+        "`!name-bot help` -- ***what you typed to see this message***"
+    );
 }
