@@ -6,6 +6,7 @@ const DEFAULT_CHANNEL_ID = '847099887090925578';
 const CHANNEL_COMMAND_STRING = "!name-bot set-channel";
 const CHECK_COMMAND_STRING = "!name-bot check-names";
 const HELP_COMMAND_STRING = "!name-bot help";
+const UPDATE_COMMAND_STRING = "!name-bot update";
 
 const readline = require('readline');
 const fs = require('fs');
@@ -39,6 +40,10 @@ bot.on('message', msg => {
         // order a check of all usernames now
         if (msg.content.includes(HELP_COMMAND_STRING)) {
             printHelpMessage(msg);
+        }
+        // reload the list of phrases
+        if (msg.content.includes(UPDATE_COMMAND_STRING)) {
+            reloadNaughtyList(msg.channel);
         } 
     }
 });
@@ -53,7 +58,7 @@ bot.on('guildMemberUpdate', (oldMember, newMember) => {
         console.info("detected bad change of " + found);    
     }
     else {
-        console.info("detected change");    
+        console.info(`detected change: ${memberIdStringify(oldMember)} has become ${memberIdStringify(newMember)}`);    
     }
 });
 
@@ -67,7 +72,7 @@ bot.on('userUpdate', (oldMember, newMember) => {
         console.info("detected bad username change of " + found);
     }
     else {
-        console.info("detected username change");
+        console.info(`detected username change:: ${oldMember.username} has become ${newMember.username}`);
     }
 });
 
@@ -109,6 +114,23 @@ function loadNaughtyList(){
 
     myInterface.on('line', function (line) {
         naughtyList.push(line);
+    });
+}
+
+function reloadNaughtyList(channel){
+    let myInterface = readline.createInterface({
+        input: fs.createReadStream(NAUGHTY_LIST_FILE)
+    });
+
+    let tempList = [];
+
+    myInterface.on('line', function (line) {
+        tempList.push(line);
+    });
+
+    myInterface.on('close', () => {
+        naughtyList = tempList;
+        channel.send("Updated Naughty List");
     });
 }
 
@@ -167,6 +189,7 @@ function printHelpMessage(msg){
         "**List of commands:**\n" +
         "`!name-bot set-channel <channel id>` -- ***tells name-bot what channel to post alerts on;*** *<channel id> should be a number that can be found in Discord's developer mode (can be turned on in Advanced settings) by right clicking on a channel name*\n" +
         "`!name-bot check-names` -- ***tells name-bot to run a check for naughty names RIGHT NOW***\n" +
-        "`!name-bot help` -- ***what you typed to see this message***"
+        "`!name-bot help` -- ***what you typed to see this message***" +
+        "`!name-bot update` -- ***reloads the list of phrases to watch out for***"
     );
 }
