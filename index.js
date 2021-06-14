@@ -238,7 +238,7 @@ function phraseExists(phrase){
 
 // add a phrase to the naughty file
 function addPhraseToFile(phrase, channel){
-    fs.appendFile(NAUGHTY_LIST_FILE, "\n" + phrase, (err) => {
+    fs.appendFile(NAUGHTY_LIST_FILE, "\n" + phrase.toLowerCase(), (err) => {
         if(err) {
             channel.send(`*Phrase "${phrase}" added to list, but failed to save to file*`);
         }
