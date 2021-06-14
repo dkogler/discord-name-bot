@@ -1,3 +1,7 @@
+//////////////////////////////////////////////////////////
+// Setup 
+//////////////////////////////////////////////////////////
+
 require('dotenv').config();
 const Discord = require('discord.js');
 const bot = new Discord.Client();
@@ -7,6 +11,7 @@ const CHANNEL_COMMAND_STRING = "!name-bot set-channel";
 const CHECK_COMMAND_STRING = "!name-bot check-names";
 const HELP_COMMAND_STRING = "!name-bot help";
 const UPDATE_COMMAND_STRING = "!name-bot update";
+const ADD_COMMAND_STRING = "!name-bot add-phrase";
 
 const readline = require('readline');
 const fs = require('fs');
@@ -27,7 +32,7 @@ bot.on('ready', () => {
 // listen for incoming commands
 bot.on('message', msg => {
     // make sure name-bot didn't send this message
-    if (msg.member.user !== bot.user){
+    if (msg.member.user !== bot.user && isAdmin(msg.member)){
         // change or set the channel to send notifications to
         if (msg.content.includes(CHANNEL_COMMAND_STRING)) {
             attemptChannelChange(msg);
@@ -39,14 +44,22 @@ bot.on('message', msg => {
         } 
         // order a check of all usernames now
         if (msg.content.includes(HELP_COMMAND_STRING)) {
-            printHelpMessage(msg);
+            printHelpMessage(msg.channel);
         }
         // reload the list of phrases
         if (msg.content.includes(UPDATE_COMMAND_STRING)) {
             reloadNaughtyList(msg.channel);
         } 
+        // add a new phrase to the list
+        if (msg.content.includes(ADD_COMMAND_STRING)) {
+            addPhrase(msg);
+        } 
     }
 });
+
+//////////////////////////////////////////////////////////
+// Naughty Detection 
+//////////////////////////////////////////////////////////
 
 // listen for changes to the member (non-username)
 bot.on('guildMemberUpdate', (oldMember, newMember) => {
@@ -75,64 +88,6 @@ bot.on('userUpdate', (oldMember, newMember) => {
         console.info(`detected username change:: ${oldMember.username} has become ${newMember.username}`);
     }
 });
-
-// make the username and nickname print pretty together
-function memberIdStringify(memberId){
-    return memberId.user.username + " (" + memberId.nickname + ")";
-}
-
-// get the channel id from the incoming message string
-function getNewChannelId(string){
-    return string.replace( /^\D+/g, '');
-}
-
-// try sending a notification; it will fail if the registered channel is invalid
-function trySend(string){
-    if (sendChannel){
-        sendChannel.send(string);
-    }
-}
-
-// check if a name contains anything in the censor list
-function isBadName(name){
-    if (!name) {
-        return false;
-    }
-    for (let bad in naughtyList){
-        if (name.toLowerCase().includes(naughtyList[bad])){
-            return naughtyList[bad];
-        }
-    }
-    return false;
-}
-
-// load the naughty list file
-function loadNaughtyList(){
-    let myInterface = readline.createInterface({
-        input: fs.createReadStream(NAUGHTY_LIST_FILE)
-    });
-
-    myInterface.on('line', function (line) {
-        naughtyList.push(line);
-    });
-}
-
-function reloadNaughtyList(channel){
-    let myInterface = readline.createInterface({
-        input: fs.createReadStream(NAUGHTY_LIST_FILE)
-    });
-
-    let tempList = [];
-
-    myInterface.on('line', function (line) {
-        tempList.push(line);
-    });
-
-    myInterface.on('close', () => {
-        naughtyList = tempList;
-        channel.send("Updated Naughty List");
-    });
-}
 
 // run a check to see if members have naughty names at startup
 function runNaughtyCheck(){
@@ -165,31 +120,154 @@ function runNaughtyCheck(){
     }
 };
 
+// check if a name contains anything in the censor list
+function isBadName(name){
+    if (!name) {
+        return false;
+    }
+    for (let bad in naughtyList){
+        if (name.toLowerCase().includes(naughtyList[bad])){
+            return naughtyList[bad];
+        }
+    }
+    return false;
+}
+
+//////////////////////////////////////////////////////////
+// Naughty Detection Helpers
+//////////////////////////////////////////////////////////
+
+// load the naughty list file
+function loadNaughtyList(){
+    let myInterface = readline.createInterface({
+        input: fs.createReadStream(NAUGHTY_LIST_FILE)
+    });
+
+    myInterface.on('line', (line) => {
+        naughtyList.push(line);
+    });
+}
+
+// reload naughty list file on demand
+function reloadNaughtyList(channel){
+    let myInterface = readline.createInterface({
+        input: fs.createReadStream(NAUGHTY_LIST_FILE)
+    });
+
+    let tempList = [];
+
+    myInterface.on('line', (line) => {
+        tempList.push(line);
+    });
+
+    myInterface.on('close', () => {
+        naughtyList = tempList;
+        channel.send("Updated Naughty List");
+    });
+}
+
+//////////////////////////////////////////////////////////
+// General Functionality 
+//////////////////////////////////////////////////////////
+
 // try to change the send channel
 function attemptChannelChange(msg){
     let newValue = getNewChannelId(msg.content);
-        let checkChannel = bot.channels.get(newValue);
-        if (checkChannel){
-            sendChannel = checkChannel;
-            msg.channel.send("*Successfully changed message channel to* ***" + sendChannel.name + "***");
+    let checkChannel = bot.channels.get(newValue);
+    if (checkChannel){
+        sendChannel = checkChannel;
+        msg.channel.send(`*Successfully changed message channel to* ***${sendChannel.name}***`);
+    }
+    else {
+        if (newValue === ""){
+            msg.channel.send("*New channel id must be a number*");
         }
+        else{
+            msg.channel.send(`***${newValue}*** *is not a valid channel id*`);
+        }
+    }
+}
+
+// add a new phrase to the naughty list and naughty file
+function addPhrase(msg){
+    // get ther phrase and check that it is valid
+    let newPhrase = extractPhrase(msg.content);
+    if (!newPhrase){
+        msg.channel.send(`*No message detected. Please use "double quotes" around phrase.`)
+    }
+    else {
+        // if the phrase is not already on the list, add it
+        if (!phraseExists(newPhrase)){
+            naughtyList.push(newPhrase);
+            addPhraseToFile(newPhrase, msg.channel);
+        }
+        // otherwise, say that it already is on the list
         else {
-            if (newValue === ""){
-                msg.channel.send("*New channel id must be a number*");
-            }
-            else{
-                msg.channel.send("***" + newValue + "*** *is not a valid channel id*");
-            }
+            msg.channel.send(`*Phrase "${newPhrase}" is already in naughty list.`)
         }
+    }
 }
 
 // print the list of commands
-function printHelpMessage(msg){
-    msg.channel.send(
+function printHelpMessage(channel){
+    channel.send(
         "**List of commands:**\n" +
-        "`!name-bot set-channel <channel id>` -- ***tells name-bot what channel to post alerts on;*** *<channel id> should be a number that can be found in Discord's developer mode (can be turned on in Advanced settings) by right clicking on a channel name*\n" +
         "`!name-bot check-names` -- ***tells name-bot to run a check for naughty names RIGHT NOW***\n" +
-        "`!name-bot help` -- ***what you typed to see this message***" +
-        "`!name-bot update` -- ***reloads the list of phrases to watch out for***"
+        "`!name-bot update` -- ***reloads the list of phrases to watch out for***\n" +
+        "`!name-bot add-phrase <phrase>` -- ***adds a new phrase to the naughty file;*** *<phrase> should be placed in double quotes or it will be ignored*\n" +
+        "`!name-bot set-channel <channel id>` -- ***tells name-bot what channel to post alerts on;*** *<channel id> should be a number that can be found in Discord's developer mode (can be turned on in Advanced settings) by right clicking on a channel name*\n" +
+        "`!name-bot help` -- ***what you typed to see this message***"
     );
+}
+
+//////////////////////////////////////////////////////////
+// Misc. Helpers
+//////////////////////////////////////////////////////////
+
+// make the username and nickname print pretty together
+function memberIdStringify(memberId){
+    return memberId.user.username + " (" + memberId.nickname + ")";
+}
+
+// try sending a notification; it will fail if the registered channel is invalid
+function trySend(string){
+    if (sendChannel){
+        sendChannel.send(string);
+    }
+}
+
+// check if a member has administrator permissions
+function isAdmin(member){
+    return member.guild.me.hasPermission('ADMINISTRATOR');
+}
+
+
+// get the channel id from the incoming message string
+function getNewChannelId(string){
+    return string.replace( /^\D+/g, '');
+}
+
+// extract a new phrase from an add-phrase message
+function extractPhrase(string){
+    let firstQuote = string.indexOf('"');
+    let lastQuote = string.lastIndexOf('"');
+
+    return (firstQuote !== lastQuote) ? string.slice(firstQuote+1, lastQuote): "";
+}
+
+// check if a phrase exists in the list
+function phraseExists(phrase){
+    return naughtyList.includes(phrase);
+}
+
+// add a phrase to the naughty file
+function addPhraseToFile(phrase, channel){
+    fs.appendFile(NAUGHTY_LIST_FILE, "\n" + phrase, (err) => {
+        if(err) {
+            channel.send(`Phrase "${phrase}" added to list, but failed to save to file`);
+        }
+        else {
+            channel.send(`Phrase "${phrase}" added to list`);
+        }
+    });
 }
