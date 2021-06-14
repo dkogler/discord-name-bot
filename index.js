@@ -190,7 +190,6 @@ function printHelpMessage(channel){
     channel.send(
         "**List of commands:**\n" +
         "`!name-bot check-names` -- ***tells name-bot to run a check for naughty names RIGHT NOW***\n" +
-        "`!name-bot update` -- ***reloads the list of phrases to watch out for***\n" +
         "`!name-bot add-phrase <phrase>` -- ***adds a new phrase to the naughty file;*** *<phrase> should be placed in double quotes or it will be ignored*\n" +
         "`!name-bot set-channel <channel id>` -- ***tells name-bot what channel to post alerts on;*** *<channel id> should be a number that can be found in Discord's developer mode (can be turned on in Advanced settings) by right clicking on a channel name*\n" +
         "`!name-bot help` -- ***what you typed to see this message***"
