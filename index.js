@@ -10,7 +10,6 @@ const DEFAULT_CHANNEL_ID = '847099887090925578';
 const CHANNEL_COMMAND_STRING = "!name-bot set-channel";
 const CHECK_COMMAND_STRING = "!name-bot check-names";
 const HELP_COMMAND_STRING = "!name-bot help";
-const UPDATE_COMMAND_STRING = "!name-bot update";
 const ADD_COMMAND_STRING = "!name-bot add-phrase";
 
 const readline = require('readline');
@@ -46,10 +45,6 @@ bot.on('message', msg => {
         if (msg.content.includes(HELP_COMMAND_STRING)) {
             printHelpMessage(msg.channel);
         }
-        // reload the list of phrases
-        if (msg.content.includes(UPDATE_COMMAND_STRING)) {
-            reloadNaughtyList(msg.channel);
-        } 
         // add a new phrase to the list
         if (msg.content.includes(ADD_COMMAND_STRING)) {
             addPhrase(msg);
@@ -145,24 +140,6 @@ function loadNaughtyList(){
 
     myInterface.on('line', (line) => {
         naughtyList.push(line);
-    });
-}
-
-// reload naughty list file on demand
-function reloadNaughtyList(channel){
-    let myInterface = readline.createInterface({
-        input: fs.createReadStream(NAUGHTY_LIST_FILE)
-    });
-
-    let tempList = [];
-
-    myInterface.on('line', (line) => {
-        tempList.push(line);
-    });
-
-    myInterface.on('close', () => {
-        naughtyList = tempList;
-        channel.send("Updated Naughty List");
     });
 }
 
