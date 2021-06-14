@@ -170,7 +170,7 @@ function addPhrase(msg){
     // get ther phrase and check that it is valid
     let newPhrase = extractPhrase(msg.content);
     if (!newPhrase){
-        msg.channel.send(`*No message detected. Please use "double quotes" around phrase.`)
+        msg.channel.send(`*No message detected. Please use "double quotes" around phrase.*`)
     }
     else {
         // if the phrase is not already on the list, add it
@@ -180,7 +180,7 @@ function addPhrase(msg){
         }
         // otherwise, say that it already is on the list
         else {
-            msg.channel.send(`*Phrase "${newPhrase}" is already in naughty list.`)
+            msg.channel.send(`*Phrase "${newPhrase}" is already in naughty list.*`)
         }
     }
 }
@@ -240,10 +240,10 @@ function phraseExists(phrase){
 function addPhraseToFile(phrase, channel){
     fs.appendFile(NAUGHTY_LIST_FILE, "\n" + phrase, (err) => {
         if(err) {
-            channel.send(`Phrase "${phrase}" added to list, but failed to save to file`);
+            channel.send(`*Phrase "${phrase}" added to list, but failed to save to file*`);
         }
         else {
-            channel.send(`Phrase "${phrase}" added to list`);
+            channel.send(`*Phrase "${phrase}" added to list*`);
         }
     });
 }
